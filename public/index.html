@@ -307,6 +307,10 @@
 <div id="app"></div>
 <div id="modal-root"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
 <script>
 (function(){
   "use strict";
@@ -329,6 +333,7 @@
     plus:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 4.5v15M4.5 12h15"/></svg>',
     close:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     upload:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4.5 16.5v2a2 2 0 002 2h11a2 2 0 002-2v-2"/></svg>',
+    download:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7.5 11.5L12 16l4.5-4.5"/><path d="M4.5 16.5v2a2 2 0 002 2h11a2 2 0 002-2v-2"/></svg>',
     phoneOut:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5.5l3.5-.6.6 3.5"/><path d="M18.5 5L13 10.5"/><path d="M9.2 3.7c.5 1.5 1.2 2.9 2.2 4.2l-2 2.2c1.2 2.2 3 4 5.2 5.2l2.2-2c1.3 1 2.7 1.7 4.2 2.2v3a1.4 1.4 0 01-1.5 1.4C10.4 19 5 13.6 4.3 4.5a1.4 1.4 0 011.4-1.5h3z" fill="none"/></svg>',
     phoneIn:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18.5 8.6l-3.5.6-.6-3.5"/><path d="M15 9.1L20.5 3.6"/><path d="M9.2 3.7c.5 1.5 1.2 2.9 2.2 4.2l-2 2.2c1.2 2.2 3 4 5.2 5.2l2.2-2c1.3 1 2.7 1.7 4.2 2.2v3a1.4 1.4 0 01-1.5 1.4C10.4 19 5 13.6 4.3 4.5a1.4 1.4 0 011.4-1.5h3z" fill="none"/></svg>',
     mic:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="10.5" rx="3"/><path d="M6 11.5a6 6 0 0012 0M12 17.5v3"/></svg>',
@@ -411,13 +416,13 @@
         ],
         c4:[],
       },
-      callLog: [
-        {id:'l1', time:'09:14', agentId:'a1', campaignId:'c1', contact:'Mario Delgado', phone:'+52 55 6690 1123', direction:'Saliente', duration:'03:42', dispo:'venta', recorded:true},
-        {id:'l2', time:'09:31', agentId:'a3', campaignId:'c3', contact:'Rebeca Solano', phone:'+52 81 2201 5563', direction:'Saliente', duration:'01:58', dispo:'recontactar', recorded:true},
-        {id:'l3', time:'09:47', agentId:'a4', campaignId:'c2', contact:'Empresa Solvex', phone:'+52 55 1170 4482', direction:'Entrante', duration:'06:21', dispo:'seguimiento', recorded:true},
-        {id:'l4', time:'10:02', agentId:'a2', campaignId:'c1', contact:'Teresa Vidal', phone:'+52 55 9012 6634', direction:'Saliente', duration:'00:38', dispo:'no_contesto', recorded:false},
-        {id:'l5', time:'10:19', agentId:'a6', campaignId:'c3', contact:'Osvaldo Reyna', phone:'+52 81 5540 9021', direction:'Saliente', duration:'02:11', dispo:'equivocado', recorded:true},
-      ],
+      callLog: (()=>{ const today = new Date().toISOString().slice(0,10); return [
+        {id:'l1', date:today, time:'09:14', agentId:'a1', campaignId:'c1', contact:'Mario Delgado', phone:'+52 55 6690 1123', direction:'Saliente', duration:'03:42', dispo:'venta', notes:'', recorded:true},
+        {id:'l2', date:today, time:'09:31', agentId:'a3', campaignId:'c3', contact:'Rebeca Solano', phone:'+52 81 2201 5563', direction:'Saliente', duration:'01:58', dispo:'recontactar', notes:'Pidió que se le llame la próxima semana.', recorded:true},
+        {id:'l3', date:today, time:'09:47', agentId:'a4', campaignId:'c2', contact:'Empresa Solvex', phone:'+52 55 1170 4482', direction:'Entrante', duration:'06:21', dispo:'seguimiento', notes:'', recorded:true},
+        {id:'l4', date:today, time:'10:02', agentId:'a2', campaignId:'c1', contact:'Teresa Vidal', phone:'+52 55 9012 6634', direction:'Saliente', duration:'00:38', dispo:'no_contesto', notes:'', recorded:false},
+        {id:'l5', date:today, time:'10:19', agentId:'a6', campaignId:'c3', contact:'Osvaldo Reyna', phone:'+52 81 5540 9021', direction:'Saliente', duration:'02:11', dispo:'equivocado', notes:'', recorded:true},
+      ]; })(),
       settings:{
         companyName:'Davvinci',
         timezone:'America/Mexico_City (UTC-6)',
@@ -488,6 +493,7 @@
     modalError:'',
     loginError:'',
     baseFilter:{campaignId:'', q:''},
+    reportFilter:{dateFrom:'', dateTo:'', agentId:'', campaignId:'', dispo:'', q:''},
   };
 
   const restoredSession = loadPersisted();
@@ -968,11 +974,12 @@
     return `
       <div class="toolbar">
         <div class="toolbar-title"><span class="card-title">Base de clientes</span><span class="card-note">${contactBase.length} contactos cargados en total</span></div>
-        ${canManage ? `
         <div class="toolbar-actions">
+          <button class="btn btn-sm" data-action="export-contacts-csv">${ICONS.download} Exportar CSV</button>
+          ${canManage ? `
           <button class="btn file-btn"><input type="file" id="csv-input" accept=".csv,text/csv" data-change="csv-upload">${ICONS.upload} Subir CSV</button>
-          <button class="btn btn-primary" data-action="open-new-contact">${ICONS.plus} Agregar contacto</button>
-        </div>` : ''}
+          <button class="btn btn-primary" data-action="open-new-contact">${ICONS.plus} Agregar contacto</button>` : ''}
+        </div>
       </div>
       <div class="filter-row">
         <input type="search" id="base-search" placeholder="Buscar por nombre o teléfono…" data-change="base-search" value="${esc(f.q)}" style="min-width:220px;">
@@ -1050,9 +1057,34 @@
   function viewReportes(){
     const week = [{label:'Lun',a:38,b:52},{label:'Mar',a:44,b:61},{label:'Mié',a:41,b:58},{label:'Jue',a:35,b:66},{label:'Vie',a:47,b:70},{label:'Sáb',a:12,b:18},{label:'Dom',a:6,b:9}];
     const ahtData = agents.map(a=>({label:a.name.split(' ')[0], value: a.aht==='—'?0:(parseInt(a.aht)*60+parseInt(a.aht.split(':')[1]))}));
-    const dispoCounts = {}; callLog.forEach(l=> dispoCounts[l.dispo]=(dispoCounts[l.dispo]||0)+1);
+    const f = state.reportFilter;
+    const rows = filteredCallLog();
+    const dispoCounts = {}; rows.forEach(l=> dispoCounts[l.dispo]=(dispoCounts[l.dispo]||0)+1);
     const dispoData = Object.entries(dispoCounts).map(([id,value])=>({label:DISPO_MAP[id].label, value, color:`var(--status-${DISPO_MAP[id].tone==='warn'?'warning':DISPO_MAP[id].tone})`}));
+    const anyFilter = f.dateFrom||f.dateTo||f.agentId||f.campaignId||f.dispo||f.q;
+
+    const historyRows = rows.map(l=>{
+      const ag = agentById(l.agentId); const camp = campaignById(l.campaignId);
+      return `<tr>
+        <td class="card-note num">${esc(l.date||'—')}<br>${esc(l.time)}</td>
+        <td>${ag?esc(ag.name):'—'}</td>
+        <td>${camp?esc(camp.name):'—'}</td>
+        <td><b>${esc(l.contact)}</b><div class="card-note num">${esc(l.phone)}</div></td>
+        <td>${l.direction==='Entrante'?ICONS.phoneIn:ICONS.phoneOut} ${l.direction}</td>
+        <td class="num">${esc(l.duration)}</td>
+        <td>${dispoBadge(l.dispo)}</td>
+        <td style="max-width:220px; white-space:normal;">${l.notes ? esc(l.notes) : '<span class="card-note">—</span>'}</td>
+      </tr>`;
+    }).join('');
+
     return `
+      <div class="toolbar">
+        <div class="toolbar-title"><span class="card-title">Reportes y métricas</span><span class="card-note">Exporta el corte filtrado para enviarlo por correo o archivarlo</span></div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-sm" data-action="export-excel">${ICONS.download} Exportar Excel</button>
+          <button class="btn btn-primary btn-sm" data-action="export-pdf">${ICONS.download} Exportar PDF</button>
+        </div>
+      </div>
       <div class="card card-pad">
         <div class="card-head"><span class="card-title">Volumen de llamadas — últimos 7 días</span></div>
         ${svgStacked(week)}
@@ -1064,11 +1096,205 @@
           ${svgBarV(ahtData)}
         </div>
         <div class="card card-pad">
-          <div class="card-head"><span class="card-title">Distribución de tipificaciones</span></div>
+          <div class="card-head"><span class="card-title">Distribución de tipificaciones</span><span class="card-note">${anyFilter?'según filtro activo':'todo el periodo'}</span></div>
           ${donut(dispoData,120)}
         </div>
       </div>
+      <div class="toolbar" style="margin-top:4px;">
+        <div class="toolbar-title"><span class="card-title">Historial de llamadas</span><span class="card-note">${rows.length} de ${callLog.length} llamadas registradas</span></div>
+      </div>
+      <div class="filter-row">
+        <label class="card-note" style="display:flex; flex-direction:column; gap:3px;">Desde
+          <input type="date" data-change="report-date-from" value="${esc(f.dateFrom)}">
+        </label>
+        <label class="card-note" style="display:flex; flex-direction:column; gap:3px;">Hasta
+          <input type="date" data-change="report-date-to" value="${esc(f.dateTo)}">
+        </label>
+        <select data-change="report-agent-filter">
+          <option value="">Todos los agentes</option>
+          ${agents.map(a=>`<option value="${a.id}" ${f.agentId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}
+        </select>
+        <select data-change="report-campaign-filter">
+          <option value="">Todas las campañas</option>
+          ${campaigns.map(cp=>`<option value="${cp.id}" ${f.campaignId===cp.id?'selected':''}>${esc(cp.name)}</option>`).join('')}
+        </select>
+        <select data-change="report-dispo-filter">
+          <option value="">Todas las tipificaciones</option>
+          ${DISPOSITIONS.map(d=>`<option value="${d.id}" ${f.dispo===d.id?'selected':''}>${esc(d.label)}</option>`).join('')}
+        </select>
+        <input type="search" id="report-search" placeholder="Buscar por contacto o teléfono…" data-change="report-search" value="${esc(f.q)}" style="min-width:200px;">
+        ${anyFilter ? `<button class="btn btn-sm" data-action="report-clear-filters">Limpiar filtros</button>` : ''}
+      </div>
+      ${rows.length ? `<div class="table-wrap"><table class="data">
+        <thead><tr><th>Fecha/Hora</th><th>Agente</th><th>Campaña</th><th>Contacto</th><th>Dirección</th><th>Duración</th><th>Tipificación</th><th>Notas</th></tr></thead>
+        <tbody>${historyRows}</tbody>
+      </table></div>` : `<div class="card"><div class="empty-note">No hay llamadas que coincidan con el filtro.</div></div>`}
     `;
+  }
+
+  /* ============================= EXPORTAR REPORTES ============================= */
+  function parseDurationToSec(d){
+    if(!d) return 0;
+    const parts = String(d).split(':').map(Number);
+    if(parts.length!==2 || parts.some(isNaN)) return 0;
+    return parts[0]*60 + parts[1];
+  }
+  function formatSec(sec){
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec/60), s = sec%60;
+    return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  }
+  function filteredCallLog(){
+    const f = state.reportFilter;
+    return callLog.filter(l=>{
+      if(f.dateFrom && (l.date||'') < f.dateFrom) return false;
+      if(f.dateTo && (l.date||'') > f.dateTo) return false;
+      if(f.agentId && l.agentId!==f.agentId) return false;
+      if(f.campaignId && l.campaignId!==f.campaignId) return false;
+      if(f.dispo && l.dispo!==f.dispo) return false;
+      if(f.q){ const q=f.q.toLowerCase(); if(!(String(l.contact||'').toLowerCase().includes(q) || String(l.phone||'').includes(q))) return false; }
+      return true;
+    });
+  }
+  function reportPeriodLabel(){
+    const f = state.reportFilter;
+    if(!f.dateFrom && !f.dateTo) return 'Todo el historial disponible';
+    if(f.dateFrom && f.dateTo) return `${f.dateFrom} a ${f.dateTo}`;
+    if(f.dateFrom) return `Desde ${f.dateFrom}`;
+    return `Hasta ${f.dateTo}`;
+  }
+  function reportCallRows(rows){
+    return (rows || filteredCallLog()).map(l=>{
+      const ag = agents.find(a=>a.id===l.agentId);
+      const camp = campaignById(l.campaignId);
+      const d = DISPO_MAP[l.dispo];
+      return {
+        'Fecha': l.date || '—',
+        'Hora': l.time,
+        'Agente': ag ? ag.name : '—',
+        'Campaña': camp ? camp.name : '—',
+        'Contacto': l.contact,
+        'Teléfono': l.phone,
+        'Dirección': l.direction,
+        'Duración': l.duration,
+        'Tipificación': d ? d.label : l.dispo,
+        'Notas': l.notes || '',
+        'Grabada': l.recorded ? 'Sí' : 'No',
+      };
+    });
+  }
+  function reportDispoRows(rows){
+    const source = rows || filteredCallLog();
+    const counts = {};
+    source.forEach(l=> counts[l.dispo]=(counts[l.dispo]||0)+1);
+    const total = source.length || 1;
+    return Object.entries(counts).map(([id,count])=>({
+      id, label: DISPO_MAP[id]?DISPO_MAP[id].label:id, count, pct: Math.round(count/total*1000)/10,
+    }));
+  }
+  function exportReporteExcel(){
+    if(typeof XLSX==='undefined'){ alert('No se pudo cargar el motor de Excel (revisa tu conexión a internet) — intenta de nuevo.'); return; }
+    const rows = filteredCallLog();
+    const wsCalls = XLSX.utils.json_to_sheet(reportCallRows(rows));
+    wsCalls['!cols'] = [{wch:11},{wch:7},{wch:18},{wch:24},{wch:22},{wch:16},{wch:10},{wch:9},{wch:26},{wch:30},{wch:8}];
+
+    const agentRows = agents.map(a=>({
+      'Agente': a.name, 'Campaña': (campaignById(a.campaignId)||{}).name || '—',
+      'Estado': a.status, 'Llamadas hoy': a.callsToday, 'TMO': a.aht,
+    }));
+    const wsAgents = XLSX.utils.json_to_sheet(agentRows);
+    wsAgents['!cols'] = [{wch:20},{wch:26},{wch:14},{wch:12},{wch:8}];
+
+    const dispoRows = reportDispoRows(rows).map(d=>({ 'Tipificación': d.label, 'Llamadas': d.count, '% del total': d.pct+'%' }));
+    const wsDispo = XLSX.utils.json_to_sheet(dispoRows);
+    wsDispo['!cols'] = [{wch:28},{wch:10},{wch:12}];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsCalls, 'Llamadas');
+    XLSX.utils.book_append_sheet(wb, wsAgents, 'Agentes');
+    XLSX.utils.book_append_sheet(wb, wsDispo, 'Tipificaciones');
+
+    const today = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `Davvinci_Reporte_${today}.xlsx`);
+  }
+  function exportReportePDF(){
+    if(typeof window.jspdf==='undefined'){ alert('No se pudo cargar el motor de PDF (revisa tu conexión a internet) — intenta de nuevo.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 40;
+    let y = 56;
+
+    try{ doc.addImage(DAVVINCI_MARK, 'PNG', marginX, y-30, 34, 34); }catch(e){}
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(27,33,64);
+    doc.text(settings.companyName || 'Davvinci', marginX+44, y-10);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(91,100,114);
+    doc.text('Reporte de desempeño — Centro de llamadas', marginX+44, y+8);
+
+    const todayStr = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'numeric' });
+    doc.setFontSize(9); doc.setTextColor(140,148,166);
+    doc.text(`Generado el ${todayStr}`, pageW-marginX, y-10, { align:'right' });
+
+    y += 22;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(91,100,114);
+    doc.text(`Periodo: ${reportPeriodLabel()}`, marginX, y);
+    y += 14;
+    doc.setDrawColor(220,224,236); doc.line(marginX, y, pageW-marginX, y);
+    y += 30;
+
+    const rows = filteredCallLog();
+    const total = rows.length;
+    const salientes = rows.filter(l=>l.direction==='Saliente').length;
+    const entrantes = rows.filter(l=>l.direction==='Entrante').length;
+    const avgSec = total ? rows.reduce((s,l)=>s+parseDurationToSec(l.duration),0)/total : 0;
+    const grabadas = rows.filter(l=>l.recorded).length;
+    const kpis = [
+      ['Llamadas totales', String(total)],
+      ['Salientes / Entrantes', `${salientes} / ${entrantes}`],
+      ['Duración promedio', formatSec(avgSec)],
+      ['Grabadas', `${grabadas} de ${total}`],
+    ];
+    const kpiW = (pageW - marginX*2)/kpis.length;
+    kpis.forEach((k,i)=>{
+      const x = marginX + i*kpiW;
+      doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(27,33,64);
+      doc.text(k[1], x, y);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,128,148);
+      doc.text(k[0], x, y+15);
+    });
+    y += 40;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(11.5); doc.setTextColor(27,33,64);
+    doc.text('Distribución de tipificaciones', marginX, y);
+    doc.autoTable({
+      startY: y+10, margin:{ left:marginX, right:marginX },
+      head:[['Tipificación','Llamadas','% del total']],
+      body: reportDispoRows(rows).map(d=>[d.label, String(d.count), d.pct+'%']),
+      theme:'plain',
+      headStyles:{ fillColor:[27,33,64], textColor:255, fontStyle:'bold', fontSize:9 },
+      bodyStyles:{ fontSize:9, textColor:[40,44,58] },
+      alternateRowStyles:{ fillColor:[247,248,250] },
+    });
+    y = doc.lastAutoTable.finalY + 28;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(11.5); doc.setTextColor(27,33,64);
+    doc.text('Desempeño por agente', marginX, y);
+    doc.autoTable({
+      startY: y+10, margin:{ left:marginX, right:marginX },
+      head:[['Agente','Campaña','Estado','Llamadas hoy','TMO']],
+      body: agents.map(a=>[a.name, (campaignById(a.campaignId)||{}).name||'—', a.status, String(a.callsToday), a.aht]),
+      theme:'plain',
+      headStyles:{ fillColor:[27,33,64], textColor:255, fontStyle:'bold', fontSize:9 },
+      bodyStyles:{ fontSize:9, textColor:[40,44,58] },
+      alternateRowStyles:{ fillColor:[247,248,250] },
+    });
+
+    doc.setFontSize(8); doc.setTextColor(160,166,182);
+    doc.text('Generado automáticamente por Davvinci', marginX, pageH-24);
+
+    const todaySlug = new Date().toISOString().slice(0,10);
+    doc.save(`Davvinci_Reporte_${todaySlug}.pdf`);
   }
 
   /* ============================= VIEW: AGENTES ============================= */
@@ -1367,9 +1593,10 @@
     const agentId = state.role==='agente' ? state.currentAgentId : (camp && camp.agentIds[0]) || (agents[0] && agents[0].id);
     const now = new Date();
     const timeLabel = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const dateLabel = now.toISOString().slice(0,10);
     callLog.unshift({
-      id:uid('l'), time:timeLabel, agentId, campaignId: camp?camp.id:null, contact:d.contact.name, phone:d.contact.phone,
-      direction: (camp && camp.type==='Entrante') ? 'Entrante' : 'Saliente', duration:fmtMMSS(d.elapsed), dispo:dispoId, recorded: settings.recordingEnabled,
+      id:uid('l'), date:dateLabel, time:timeLabel, agentId, campaignId: camp?camp.id:null, contact:d.contact.name, phone:d.contact.phone,
+      direction: (camp && camp.type==='Entrante') ? 'Entrante' : 'Saliente', duration:fmtMMSS(d.elapsed), dispo:dispoId, notes:(notes||'').trim(), recorded: settings.recordingEnabled,
     });
     if(camp){
       if(camp.type!=='Entrante'){ camp.contacted = Math.min(camp.contacted+1, camp.total||camp.contacted+1); }
@@ -1399,6 +1626,27 @@
       rows = rows.slice(1);
     }
     return rows.filter(r=>r.length>Math.max(nameIdx,phoneIdx) && r[phoneIdx]).map(r=>({name:r[nameIdx]||'Sin nombre', phone:r[phoneIdx]}));
+  }
+
+  function exportContactsCSV(){
+    const f = state.baseFilter;
+    let rows = contactBase.slice();
+    if(f.campaignId) rows = rows.filter(c=>c.campaignId===f.campaignId);
+    if(f.q){ const q=f.q.toLowerCase(); rows = rows.filter(c=> c.name.toLowerCase().includes(q) || c.phone.includes(q)); }
+    const csvEsc = (v) => { const s=String(v==null?'':v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+    const lines = [['nombre','telefono','campana','estado'].join(',')];
+    rows.forEach(c=>{
+      const camp = campaignById(c.campaignId);
+      lines.push([csvEsc(c.name), csvEsc(c.phone), csvEsc(camp?camp.name:''), csvEsc(c.status)].join(','));
+    });
+    const csv = lines.join('\r\n');
+    const blob = new Blob(["﻿"+csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toISOString().slice(0,10);
+    a.href = url; a.download = `Davvinci_Base_Clientes_${today}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   /* ============================= EVENT DELEGATION ============================= */
@@ -1444,6 +1692,10 @@
       state.view='marcador';
       startCall({name:contact.name, phone:contact.phone}, contact.id);
     }
+    else if(action==='export-excel'){ exportReporteExcel(); }
+    else if(action==='export-pdf'){ exportReportePDF(); }
+    else if(action==='report-clear-filters'){ state.reportFilter={dateFrom:'', dateTo:'', agentId:'', campaignId:'', dispo:'', q:''}; renderView(); }
+    else if(action==='export-contacts-csv'){ exportContactsCSV(); }
     else if(action==='end-call'){ endCall(); }
     else if(action==='toggle-mute'){ state.dialer.muted = !state.dialer.muted; renderAll(); }
     else if(action==='open-dispo'){ state.modal={type:'dispo', contact:state.dialer.contact, duration:state.dialer.elapsed}; renderModal(); }
@@ -1538,6 +1790,12 @@
     else if(key==='contact-campaign'){ const c=contactBase.find(x=>x.id===el.dataset.id); if(c){ c.campaignId=el.value||null; persist(); } }
     else if(key==='base-campaign-filter'){ state.baseFilter.campaignId = el.value; renderView(); }
     else if(key==='base-search'){ state.baseFilter.q = el.value; renderView(); }
+    else if(key==='report-date-from'){ state.reportFilter.dateFrom = el.value; renderView(); }
+    else if(key==='report-date-to'){ state.reportFilter.dateTo = el.value; renderView(); }
+    else if(key==='report-agent-filter'){ state.reportFilter.agentId = el.value; renderView(); }
+    else if(key==='report-campaign-filter'){ state.reportFilter.campaignId = el.value; renderView(); }
+    else if(key==='report-dispo-filter'){ state.reportFilter.dispo = el.value; renderView(); }
+    else if(key==='report-search'){ state.reportFilter.q = el.value; renderView(); }
     else if(key==='csv-upload'){
       const file = el.files && el.files[0];
       if(!file) return;
@@ -1553,13 +1811,16 @@
   });
 
   document.addEventListener('input', (e)=>{
-    const el = e.target.closest('[data-change="base-search"]');
+    const elBase = e.target.closest('[data-change="base-search"]');
+    const elReport = e.target.closest('[data-change="report-search"]');
+    const el = elBase || elReport;
     if(!el) return;
-    state.baseFilter.q = el.value;
+    if(elBase) state.baseFilter.q = el.value; else state.reportFilter.q = el.value;
     // live-filter the table without losing focus: re-render just the view
     const active = document.activeElement === el;
+    const fieldId = elBase ? 'base-search' : 'report-search';
     renderView();
-    if(active){ const again = document.getElementById('base-search'); if(again){ again.focus(); const v=again.value; again.value=''; again.value=v; } }
+    if(active){ const again = document.getElementById(fieldId); if(again){ again.focus(); const v=again.value; again.value=''; again.value=v; } }
   });
 
   /* ============================= INIT ============================= */
