@@ -12,6 +12,11 @@
  *                             llamada (TeXML) una vez que el agente contesta.
  *   POST /webhooks/telnyx  -> eventos de la llamada (contestada, colgada, etc).
  *   GET  /api/calls        -> ultimas llamadas reales registradas (para probar).
+ *   POST /webhooks/telnyx/recording -> Telnyx avisa aqui cuando una grabacion
+ *                             esta lista (se guarda la URL del audio).
+ *   GET  /api/recordings   -> grabaciones disponibles (las usa Reportes).
+ *   POST /api/sms          -> envia un SMS real a un contacto.
+ *   GET  /api/sms          -> SMS enviados recientemente.
  *
  * Ver README.md para como configurar la cuenta de Telnyx y desplegar esto.
  */
@@ -25,6 +30,8 @@ const {
   TELNYX_API_KEY,
   TELNYX_CONNECTION_ID,
   TELNYX_FROM_NUMBER,
+  TELNYX_MESSAGING_PROFILE_ID, // opcional: necesario para enviar SMS
+  TELNYX_SMS_FROM,             // opcional: numero/ID remitente de SMS (si no, usa TELNYX_FROM_NUMBER)
   PUBLIC_BASE_URL,
   APP_SECRET,
   PORT,
@@ -76,6 +83,14 @@ function normalizePhone(raw) {
     else s = "+" + s;
   }
   return /^\+\d{8,15}$/.test(s) ? s : null;
+}
+
+function xmlEscape(str) {
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function toBool(v) {
+  return v === true || v === "true" || v === "1" || v === 1;
 }
 
 function requireAppSecret(req, res, next) {
@@ -146,9 +161,15 @@ app.post("/api/dial", requireAppSecret, async (req, res) => {
       return res.status(400).json({ error: "contactPhone invalido. Usa formato +52..." });
     }
 
+    // Si el frontend pide grabar (Configuracion > Grabar todas las llamadas),
+    // se lo pasamos al TeXML del puente.
+    const record = toBool(req.body.record);
+
     const texmlUrl =
       `${PUBLIC_BASE_URL}/texml/bridge?to=${encodeURIComponent(contactPhone)}` +
-      `&name=${encodeURIComponent(contactName)}`;
+      `&name=${encodeURIComponent(contactName)}` +
+      `&rec=${record ? "1" : "0"}` +
+      `&agent=${encodeURIComponent(agentPhone)}`;
 
     const call = await telnyxRequest("/calls", {
       connection_id: TELNYX_CONNECTION_ID,
@@ -164,12 +185,15 @@ app.post("/api/dial", requireAppSecret, async (req, res) => {
       agentPhone,
       contactPhone,
       contactName,
+      record,
       telnyx_call_control_id: call?.data?.call_control_id || null,
     });
 
     res.json({
       ok: true,
-      message: "Marcando al agente. Cuando conteste, se conectara con el contacto.",
+      message: record
+        ? "Marcando al agente (llamada con grabacion). Cuando conteste, se conectara con el contacto."
+        : "Marcando al agente. Cuando conteste, se conectara con el contacto.",
       call_control_id: call?.data?.call_control_id || null,
     });
   } catch (err) {
@@ -185,15 +209,31 @@ app.post("/api/dial", requireAppSecret, async (req, res) => {
 app.all("/texml/bridge", (req, res) => {
   const to = (req.query.to || "").toString();
   const name = (req.query.name || "").toString();
+  const rec = toBool(req.query.rec);
+  const agent = (req.query.agent || "").toString();
   const safeTo = to.replace(/[<&>]/g, "");
-  const greeting = name
-    ? `Conectando con ${name}. Un momento.`
+  const safeName = xmlEscape(name);
+  let greeting = name
+    ? `Conectando con ${safeName}. Un momento.`
     : "Conectando la llamada. Un momento.";
+  // Recordatorio para el agente: la grabacion esta activa.
+  if (rec) greeting += " Esta llamada se esta grabando. Informa al contacto.";
+
+  // Si hay grabacion, Telnyx guarda el audio de las dos voces (canales separados)
+  // y avisa a /webhooks/telnyx/recording cuando el archivo esta listo.
+  const recordAttrs = rec
+    ? ` record="record-from-answer-dual" recordingChannels="dual"` +
+      ` recordingStatusCallback="${xmlEscape(
+        `${PUBLIC_BASE_URL}/webhooks/telnyx/recording?to=${encodeURIComponent(to)}` +
+          `&name=${encodeURIComponent(name)}&agent=${encodeURIComponent(agent)}`
+      )}"` +
+      ` recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"`
+    : "";
 
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say language="es-MX" voice="female">${greeting}</Say>
-  <Dial>${safeTo}</Dial>
+  <Dial${recordAttrs}>${safeTo}</Dial>
 </Response>`);
 });
 
@@ -216,6 +256,89 @@ app.post("/webhooks/telnyx", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Grabaciones. Telnyx llama aqui cuando el archivo de audio esta listo.
+// Aceptamos varios formatos de payload (form-urlencoded estilo TeXML o JSON)
+// porque el formato exacto puede variar; lo importante es guardar la URL.
+// ---------------------------------------------------------------------------
+app.post("/webhooks/telnyx/recording", (req, res) => {
+  const b = req.body || {};
+  const payload = b.data?.payload || {};
+  const url =
+    b.RecordingUrl ||
+    b.recording_url ||
+    payload.recording_urls?.mp3 ||
+    payload.public_recording_urls?.mp3 ||
+    payload.recording_urls?.wav ||
+    null;
+  const entry = {
+    type: "recording",
+    recording_url: url,
+    recording_sid: b.RecordingSid || payload.recording_id || null,
+    call_sid: b.CallSid || payload.call_session_id || payload.call_control_id || null,
+    duration_sec: Number(b.RecordingDuration || payload.duration_millis / 1000 || 0) || null,
+    contactPhone: (req.query.to || "").toString() || null,
+    contactName: (req.query.name || "").toString() || null,
+    agentPhone: (req.query.agent || "").toString() || null,
+  };
+  appendCallLog(entry);
+  console.log("[recording]", entry.recording_sid, url ? "URL ok" : "SIN URL", Object.keys(b).join(","));
+  res.sendStatus(200);
+});
+
+app.get("/api/recordings", requireAppSecret, (req, res) => {
+  res.json(readCallLog().filter((e) => e.type === "recording" && e.recording_url));
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/sms  { to, text, contactName? }
+// Requiere TELNYX_MESSAGING_PROFILE_ID y un remitente con SMS habilitado.
+// Ojo: no todos los numeros pueden enviar SMS (por ejemplo, un numero local
+// mexicano puede no soportarlo). Si Telnyx rechaza el envio, el error se
+// devuelve tal cual al frontend.
+// ---------------------------------------------------------------------------
+app.post("/api/sms", requireAppSecret, async (req, res) => {
+  try {
+    const from = TELNYX_SMS_FROM || TELNYX_FROM_NUMBER;
+    if (!TELNYX_API_KEY || !TELNYX_MESSAGING_PROFILE_ID || !from) {
+      return res.status(500).json({
+        error:
+          "Faltan variables para SMS (TELNYX_API_KEY / TELNYX_MESSAGING_PROFILE_ID / TELNYX_SMS_FROM o TELNYX_FROM_NUMBER).",
+      });
+    }
+    const to = normalizePhone(req.body.to);
+    const text = (req.body.text || "").toString().trim();
+    const contactName = (req.body.contactName || "").toString().slice(0, 80);
+    if (!to) return res.status(400).json({ error: "Telefono invalido. Usa formato +52..." });
+    if (!text) return res.status(400).json({ error: "El mensaje esta vacio." });
+    if (text.length > 1000) return res.status(400).json({ error: "El mensaje es demasiado largo (maximo 1000 caracteres)." });
+
+    const msg = await telnyxRequest("/messages", {
+      from,
+      to,
+      text,
+      messaging_profile_id: TELNYX_MESSAGING_PROFILE_ID,
+      type: "SMS",
+    });
+
+    appendCallLog({
+      type: "sms_sent",
+      to,
+      contactName,
+      text,
+      message_id: msg?.data?.id || null,
+    });
+    res.json({ ok: true, message: "SMS enviado.", message_id: msg?.data?.id || null });
+  } catch (err) {
+    console.error("Error en /api/sms:", err.message);
+    res.status(502).json({ error: `No se pudo enviar el SMS: ${err.message}` });
+  }
+});
+
+app.get("/api/sms", requireAppSecret, (req, res) => {
+  res.json(readCallLog().filter((e) => e.type === "sms_sent"));
+});
+
+// ---------------------------------------------------------------------------
 // Consultar el historial de llamadas reales (para verificar que si funciono)
 // ---------------------------------------------------------------------------
 app.get("/api/calls", requireAppSecret, (req, res) => {
@@ -226,6 +349,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     telnyxConfigured: Boolean(TELNYX_API_KEY && TELNYX_CONNECTION_ID && TELNYX_FROM_NUMBER),
+    smsConfigured: Boolean(TELNYX_API_KEY && TELNYX_MESSAGING_PROFILE_ID && (TELNYX_SMS_FROM || TELNYX_FROM_NUMBER)),
     publicBaseUrlConfigured: Boolean(PUBLIC_BASE_URL && !PUBLIC_BASE_URL.includes("CAMBIA-ESTO")),
   });
 });
