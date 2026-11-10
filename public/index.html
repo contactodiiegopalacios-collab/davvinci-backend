@@ -494,6 +494,7 @@
     loginError:'',
     baseFilter:{campaignId:'', q:''},
     reportFilter:{dateFrom:'', dateTo:'', agentId:'', campaignId:'', dispo:'', q:''},
+    recordings:{ items:[], status:'idle', msg:'' },
   };
 
   const restoredSession = loadPersisted();
@@ -968,7 +969,8 @@
             : (campaignById(c.campaignId) ? esc(campaignById(c.campaignId).name) : '<span class="card-note">Sin asignar</span>')}
         </td>
         <td>${c.status==='Contactado' ? `<span class="badge good"><span class="badge-dot"></span>Contactado</span>` : `<span class="badge neutral"><span class="badge-dot"></span>Pendiente</span>`}</td>
-        <td><button class="btn btn-sm btn-primary" data-action="call-base" data-id="${c.id}">${ICONS.phoneOut} Llamar</button></td>
+        <td style="white-space:nowrap;"><button class="btn btn-sm btn-primary" data-action="call-base" data-id="${c.id}">${ICONS.phoneOut} Llamar</button>
+          ${settings.realCallMode ? ` <button class="btn btn-sm" data-action="open-sms" data-id="${c.id}">SMS</button>` : ''}</td>
       </tr>`).join('');
 
     return `
@@ -1063,6 +1065,15 @@
     const dispoData = Object.entries(dispoCounts).map(([id,value])=>({label:DISPO_MAP[id].label, value, color:`var(--status-${DISPO_MAP[id].tone==='warn'?'warning':DISPO_MAP[id].tone})`}));
     const anyFilter = f.dateFrom||f.dateTo||f.agentId||f.campaignId||f.dispo||f.q;
 
+    if(state.recordings.status==='idle' && backendReady()) setTimeout(loadRecordings, 0);
+    const recMap = matchRecordings(rows);
+    const recCell = l => {
+      const rec = recMap[l.id];
+      if(rec) return `<audio controls preload="none" src="${esc(rec.recording_url)}" style="height:30px; max-width:200px;"></audio>`;
+      if(l.recorded && l.ts && backendReady()) return `<span class="card-note">${state.recordings.status==='loading' ? 'Buscando…' : 'Aún sin audio'}</span>`;
+      return '<span class="card-note">—</span>';
+    };
+
     const historyRows = rows.map(l=>{
       const ag = agentById(l.agentId); const camp = campaignById(l.campaignId);
       return `<tr>
@@ -1074,6 +1085,7 @@
         <td class="num">${esc(l.duration)}</td>
         <td>${dispoBadge(l.dispo)}</td>
         <td style="max-width:220px; white-space:normal;">${l.notes ? esc(l.notes) : '<span class="card-note">—</span>'}</td>
+        <td>${recCell(l)}</td>
       </tr>`;
     }).join('');
 
@@ -1124,9 +1136,11 @@
         </select>
         <input type="search" id="report-search" placeholder="Buscar por contacto o teléfono…" data-change="report-search" value="${esc(f.q)}" style="min-width:200px;">
         ${anyFilter ? `<button class="btn btn-sm" data-action="report-clear-filters">Limpiar filtros</button>` : ''}
+        ${backendReady() ? `<button class="btn btn-sm" data-action="refresh-recordings">${state.recordings.status==='loading' ? 'Actualizando…' : 'Actualizar grabaciones'}</button>` : ''}
       </div>
+      ${state.recordings.status==='error' ? `<div class="modal-error" style="margin-bottom:10px;">Grabaciones: ${esc(state.recordings.msg)}</div>` : ''}
       ${rows.length ? `<div class="table-wrap"><table class="data">
-        <thead><tr><th>Fecha/Hora</th><th>Agente</th><th>Campaña</th><th>Contacto</th><th>Dirección</th><th>Duración</th><th>Tipificación</th><th>Notas</th></tr></thead>
+        <thead><tr><th>Fecha/Hora</th><th>Agente</th><th>Campaña</th><th>Contacto</th><th>Dirección</th><th>Duración</th><th>Tipificación</th><th>Notas</th><th>Grabación</th></tr></thead>
         <tbody>${historyRows}</tbody>
       </table></div>` : `<div class="card"><div class="empty-note">No hay llamadas que coincidan con el filtro.</div></div>`}
     `;
@@ -1156,6 +1170,53 @@
       return true;
     });
   }
+  /* ---------- Backend: grabaciones y SMS ---------- */
+  function backendReady(){ return Boolean(settings.realCallMode && settings.backendUrl && settings.appSecret); }
+  async function backendFetch(path, opts){
+    const o = opts || {};
+    const resp = await fetch(settings.backendUrl.replace(/\/$/,'') + path, {
+      method: o.method || 'GET',
+      headers: { 'Content-Type':'application/json', 'x-app-key': settings.appSecret || '' },
+      body: o.body ? JSON.stringify(o.body) : undefined,
+    });
+    const data = await resp.json().catch(()=>({}));
+    if(!resp.ok) throw new Error(data.error || `El backend respondió ${resp.status}.`);
+    return data;
+  }
+  async function loadRecordings(){
+    const r = state.recordings;
+    if(!backendReady()){ r.status='idle'; return; }
+    r.status='loading'; r.msg='';
+    try{
+      r.items = await backendFetch('/api/recordings');
+      r.status='ok';
+    }catch(err){
+      r.status='error'; r.msg = err.message || 'No se pudieron cargar las grabaciones.';
+    }
+    if(state.view==='reportes') renderView();
+  }
+  const last10 = v => String(v||'').replace(/\D/g,'').slice(-10);
+  // Une cada fila del historial con su grabación real: mismo teléfono y la
+  // grabación más cercana en el tiempo (máx. 90 min). Cada audio se usa una vez.
+  function matchRecordings(rows){
+    const map = {};
+    const used = new Set();
+    const recs = state.recordings.items.map(r=>({ r, t: Date.parse(r.ts), p: last10(r.contactPhone) }));
+    rows.filter(l=>l.ts).slice().sort((a,b)=>a.ts-b.ts).forEach(l=>{
+      let best=null, bestDiff=Infinity;
+      recs.forEach(x=>{
+        if(used.has(x.r) || !x.p || x.p!==last10(l.phone) || isNaN(x.t)) return;
+        const diff = Math.abs(l.ts - x.t);
+        if(diff < bestDiff && diff <= 90*60*1000){ best=x; bestDiff=diff; }
+      });
+      if(best){ used.add(best.r); map[l.id]=best.r; }
+    });
+    return map;
+  }
+  function localDateStr(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
   function reportPeriodLabel(){
     const f = state.reportFilter;
     if(!f.dateFrom && !f.dateTo) return 'Todo el historial disponible';
@@ -1461,6 +1522,20 @@
         </div>
         <div class="modal-foot"><button class="btn" data-action="close-modal">Cancelar</button><button class="btn btn-primary" data-action="submit-dispo">Guardar y continuar</button></div>
       `;
+    } else if(state.modal.type==='sms'){
+      const m = state.modal;
+      inner = `
+        <div class="modal-head"><h3>Enviar SMS</h3><button class="modal-close" data-action="close-modal">${ICONS.close}</button></div>
+        <div class="modal-body">
+          ${errBlock}
+          <div class="card-note">${esc(m.contact.name)} · <span class="num">${esc(m.contact.phone)}</span></div>
+          <label class="field">Mensaje
+            <textarea id="sms-text" rows="4" maxlength="1000" style="font-family:inherit; font-size:13px; padding:8px 10px; border-radius:9px; border:1px solid var(--border-strong); background:var(--surface); color:var(--ink); resize:vertical;" placeholder="Escribe el mensaje…">${esc(m.text||'')}</textarea>
+          </label>
+          ${m.done ? `<div class="badge good" style="align-self:flex-start;"><span class="badge-dot"></span>${esc(m.done)}</div>` : ''}
+        </div>
+        <div class="modal-foot"><button class="btn" data-action="close-modal">${m.done?'Cerrar':'Cancelar'}</button>${m.done?'':`<button class="btn btn-primary" data-action="submit-sms" ${m.sending?'disabled':''}>${m.sending?'Enviando…':'Enviar SMS'}</button>`}</div>
+      `;
     } else if(state.modal.type==='newCampaign'){
       inner = `
         <div class="modal-head"><h3>Nueva campaña</h3><button class="modal-close" data-action="close-modal">${ICONS.close}</button></div>
@@ -1566,7 +1641,7 @@
       const resp = await fetch(settings.backendUrl.replace(/\/$/,'') + '/api/dial', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-app-key': settings.appSecret || '' },
-        body: JSON.stringify({ agentPhone, contactPhone: contact.phone, contactName: contact.name }),
+        body: JSON.stringify({ agentPhone, contactPhone: contact.phone, contactName: contact.name, record: Boolean(settings.recordingEnabled) }),
       });
       const data = await resp.json().catch(()=>({}));
       if(!resp.ok || !data.ok){
@@ -1578,6 +1653,24 @@
       d.realStatus='error'; d.realMsg = 'No se pudo contactar al backend (revisa que esté encendido y la URL sea correcta).';
     }
     renderView();
+  }
+
+  async function submitSMS(){
+    const m = state.modal;
+    if(!m || m.type!=='sms' || m.sending) return;
+    const text = (document.getElementById('sms-text').value || '').trim();
+    m.text = text;
+    if(!text){ state.modalError='Escribe el mensaje.'; renderModal(); return; }
+    if(!backendReady()){ state.modalError='Falta configurar la URL y la clave del backend en Configuración.'; renderModal(); return; }
+    m.sending=true; state.modalError=''; renderModal();
+    try{
+      await backendFetch('/api/sms', { method:'POST', body:{ to:m.contact.phone, text, contactName:m.contact.name } });
+      m.done='SMS enviado a ' + m.contact.name + '.';
+    }catch(err){
+      state.modalError = err.message || 'No se pudo enviar el SMS.';
+    }
+    m.sending=false;
+    if(state.modal===m) renderModal();
   }
 
   function endCall(){
@@ -1593,9 +1686,9 @@
     const agentId = state.role==='agente' ? state.currentAgentId : (camp && camp.agentIds[0]) || (agents[0] && agents[0].id);
     const now = new Date();
     const timeLabel = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-    const dateLabel = now.toISOString().slice(0,10);
+    const dateLabel = localDateStr(now);
     callLog.unshift({
-      id:uid('l'), date:dateLabel, time:timeLabel, agentId, campaignId: camp?camp.id:null, contact:d.contact.name, phone:d.contact.phone,
+      id:uid('l'), date:dateLabel, time:timeLabel, ts:now.getTime(), agentId, campaignId: camp?camp.id:null, contact:d.contact.name, phone:d.contact.phone,
       direction: (camp && camp.type==='Entrante') ? 'Entrante' : 'Saliente', duration:fmtMMSS(d.elapsed), dispo:dispoId, notes:(notes||'').trim(), recorded: settings.recordingEnabled,
     });
     if(camp){
@@ -1696,6 +1789,13 @@
     else if(action==='export-pdf'){ exportReportePDF(); }
     else if(action==='report-clear-filters'){ state.reportFilter={dateFrom:'', dateTo:'', agentId:'', campaignId:'', dispo:'', q:''}; renderView(); }
     else if(action==='export-contacts-csv'){ exportContactsCSV(); }
+    else if(action==='refresh-recordings'){ loadRecordings(); renderView(); }
+    else if(action==='open-sms'){
+      const contact = contactBase.find(c=>c.id===el.dataset.id);
+      if(!contact) return;
+      state.modal={type:'sms', contact, text:'', sending:false, done:''}; state.modalError=''; renderModal();
+    }
+    else if(action==='submit-sms'){ submitSMS(); }
     else if(action==='end-call'){ endCall(); }
     else if(action==='toggle-mute'){ state.dialer.muted = !state.dialer.muted; renderAll(); }
     else if(action==='open-dispo'){ state.modal={type:'dispo', contact:state.dialer.contact, duration:state.dialer.elapsed}; renderModal(); }
